@@ -9,6 +9,10 @@ pkgs.mkShell {
     vulkan-loader
     vulkan-validation-layers
     vulkan-tools
+    glslang
+    glm
+    glfw
+    shaderc
 
     clang-tools
     cmake
