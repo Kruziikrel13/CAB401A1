@@ -18,7 +18,7 @@ int main() {
 
     printf("Multiplying matrices of size %dx%d\n", N, N);
 
-    auto start_time = std::chrono::high_resolution_clock::now();
+    std::chrono::time_point start_time = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             int total = 0;
@@ -28,7 +28,7 @@ int main() {
             C[i][j] = total;
         }
     }
-    auto                          end_time = std::chrono::high_resolution_clock::now();
+    std::chrono::time_point       end_time = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double> duration = end_time - start_time;
 
