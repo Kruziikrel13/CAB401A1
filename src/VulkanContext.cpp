@@ -15,6 +15,8 @@ CVulkanContext::CVulkanContext(int matrix_size) : matrixSize(matrix_size) {
     createLogicalDevice();
     createCommandPool();
     createDescriptorSetLayout();
+    createComputePipeline();
+    createDescriptorPool();
 
     spdlog::debug("Vulkan Context initialized successfully.");
 }
@@ -146,6 +148,17 @@ void CVulkanContext::createDescriptorSetLayout() {
     }
 
     spdlog::debug("Descriptor set layout created successfully.");
+}
+
+void CVulkanContext::createComputePipeline() {
+    spdlog::debug("Creating compute pipeline.");
+
+    spdlog::debug("Successfully created compute pipeline.");
+}
+
+void CVulkanContext::createDescriptorPool() {
+    spdlog::debug("Creating descriptor pool.");
+    spdlog::debug("Successfully created descriptor pool.");
 }
 
 void CVulkanContext::cleanup() {
