@@ -4,18 +4,18 @@
 pkgs.mkShell {
   buildInputs = with pkgs; [
     gcc
+    cmake
+    glslang
 
+    ## LSP
+    neocmakelsp
+    glsl_analyzer
+    clang-tools
+
+    ## Libs
     vulkan-headers
     vulkan-loader
     vulkan-validation-layers
-    vulkan-tools
-    glslang
-    glm
-    glfw
-    shaderc
-
-    clang-tools
-    cmake
     spdlog
   ];
 
