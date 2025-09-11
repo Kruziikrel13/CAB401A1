@@ -1,0 +1,9 @@
+.direnv/
+.cache/
+CMakeFiles/
+build/
+.envrc
+CMakeCache.txt
+Makefile
+cmake_install.cmake
+compile_commands.json
