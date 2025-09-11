@@ -1,7 +1,5 @@
 #pragma once
 
-#include <iostream>
-#include <vector>
 #include <vulkan/vulkan.hpp>
 
 #define BUF_COUNT 3
