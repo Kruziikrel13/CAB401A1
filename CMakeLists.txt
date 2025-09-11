@@ -5,7 +5,7 @@ file(READ "${CMAKE_SOURCE_DIR}/VERSION" VER_RAW)
 string(STRIP ${VER_RAW} VER)
 
 project(
-  "CAB401 Assignment 1" 
+  "CAB401 Assignment 1"
   DESCRIPTION "QUT CAB401 Assignment 1 Code"
   VERSION ${VER}
   LANGUAGES CXX)
@@ -29,7 +29,7 @@ add_compile_options(
 set(CMAKE_EXECUTABLE_ENABLE_EXPORTS TRUE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-include_directories(include/) 
+include_directories(include/)
 
 # Sequential Prog
 add_executable(sequential src/sequential.cpp)
