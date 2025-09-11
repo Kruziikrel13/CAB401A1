@@ -11,14 +11,14 @@ debug:
 
 clear:
 	rm -rf build/
+	-rm shaders/comp.spv
 
 all:
 	$(MAKE) clear
 	$(MAKE) release
 
-nix:
-	echo "use nix" > .envrc
-	direnv allow
+shaders:
+	glslangValidator -V shaders/shader.comp -o shaders/comp.spv
 
 asan:
 	cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Debug -DWITH_ASAN:STRING=True -S . -B ./build
