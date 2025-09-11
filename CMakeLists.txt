@@ -1,16 +1,16 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.30)
 
 # Get version
 file(READ "${CMAKE_SOURCE_DIR}/VERSION" VER_RAW)
 string(STRIP ${VER_RAW} VER)
 
 project(
-  CPP_TEMPLATE
-  DESCRIPTION "C++ Template Repository"
+  "CAB401 Assignment 1" 
+  DESCRIPTION "QUT CAB401 Assignment 1 Code"
   VERSION ${VER}
   LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 26)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 add_compile_options(
@@ -29,14 +29,24 @@ add_compile_options(
 set(CMAKE_EXECUTABLE_ENABLE_EXPORTS TRUE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+include_directories(include/) 
+
+# Sequential Prog
+add_executable(sequential src/sequential.cpp)
+
+# Vulkan Prog
+add_executable(vulkan
+  src/vulkan.cpp
+  src/VulkanContext.cpp)
+
 if(CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES DEBUG)
   message(STATUS "Configuring ${PROJECT_NAME} in Debug with CMake")
 
   if(WITH_ASAN)
     message(STATUS "Enabling ASan")
 
-    target_link_libraries(${TARGETS})
-    target_compile_options(${TARGETS} PUBLIC -fsanitize=address)
+    target_link_libraries(vulkan asan)
+    target_compile_options(vulkan PUBLIC -fsanitize=address)
   endif()
 
   add_compile_options(-fno-pie -fno-builtin)
@@ -46,4 +56,9 @@ else()
   message(STATUS "Configuring ${PROJECT_NAME} in Release with CMake")
 endif()
 
-include_directories(. "src/")
+find_package(Vulkan REQUIRED)
+target_include_directories(vulkan PRIVATE ${Vulkan_INCLUDE_DIRS})
+target_link_libraries(vulkan ${Vulkan_LIBRARIES})
+
+find_package(spdlog REQUIRED)
+target_link_libraries(vulkan spdlog::spdlog)
