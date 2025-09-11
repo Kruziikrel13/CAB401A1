@@ -127,9 +127,9 @@ void CVulkanContext::createCommandPool() {
 void CVulkanContext::createDescriptorSetLayout() {
     spdlog::debug("Creating descriptor set layout.");
 
-    std::vector<VkDescriptorSetLayoutBinding> bindings(3);
+    std::vector<VkDescriptorSetLayoutBinding> bindings(BUF_COUNT);
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < BUF_COUNT; i++) {
         bindings[i].binding         = i;
         bindings[i].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         bindings[i].descriptorCount = 1;
