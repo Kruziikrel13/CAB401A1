@@ -212,8 +212,79 @@ void CVulkanContext::createComputePipeline() {
 }
 
 void CVulkanContext::createDescriptorPool() {
-    spdlog::debug("Creating descriptor pool.");
-    spdlog::debug("Successfully created descriptor pool.");
+    spdlog::debug("Creating Descriptor Pool.");
+
+    std::vector<VkDescriptorPoolSize> poolSizes(1);
+    poolSizes[0].type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[0].descriptorCount = 3;
+
+    VkDescriptorPoolCreateInfo poolInfo{};
+    poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+    poolInfo.pPoolSizes    = poolSizes.data();
+    poolInfo.maxSets       = 1;
+
+    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create descriptor pool!");
+    }
+
+    spdlog::debug("Descriptor Pool created successfully.");
+}
+
+void CVulkanContext::createDescriptorSets() {
+    spdlog::debug("Allocating and updating descriptor sets.");
+
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool     = descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts        = &descriptorSetLayout;
+
+    if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate descriptor set!");
+    }
+
+    VkDescriptorBufferInfo bufferInfoA{};
+    bufferInfoA.buffer = bufferA;
+    bufferInfoA.offset = 0;
+    bufferInfoA.range  = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo bufferInfoB{};
+    bufferInfoB.buffer = bufferB;
+    bufferInfoB.offset = 0;
+    bufferInfoB.range  = VK_WHOLE_SIZE;
+
+    VkDescriptorBufferInfo bufferInfoC{};
+    bufferInfoC.buffer = bufferC;
+    bufferInfoC.offset = 0;
+    bufferInfoC.range  = VK_WHOLE_SIZE;
+
+    std::vector<VkWriteDescriptorSet> descriptorWrites(3);
+
+    descriptorWrites[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[0].dstSet          = descriptorSet;
+    descriptorWrites[0].dstBinding      = 0;
+    descriptorWrites[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[0].descriptorCount = 1;
+    descriptorWrites[0].pBufferInfo     = &bufferInfoA;
+
+    descriptorWrites[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[1].dstSet          = descriptorSet;
+    descriptorWrites[1].dstBinding      = 1;
+    descriptorWrites[1].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[1].descriptorCount = 1;
+    descriptorWrites[1].pBufferInfo     = &bufferInfoB;
+
+    descriptorWrites[2].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    descriptorWrites[2].dstSet          = descriptorSet;
+    descriptorWrites[2].dstBinding      = 2;
+    descriptorWrites[2].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    descriptorWrites[2].descriptorCount = 1;
+    descriptorWrites[2].pBufferInfo     = &bufferInfoC;
+
+    vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+
+    spdlog::debug("Descriptor Sets allocated and updated successfully.");
 }
 
 void CVulkanContext::cleanup() {
