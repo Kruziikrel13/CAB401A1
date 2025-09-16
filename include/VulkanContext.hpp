@@ -2,8 +2,6 @@
 
 #include <vulkan/vulkan.hpp>
 
-#define BUF_COUNT 3
-
 // Vulkan Context Object
 class CVulkanContext {
   public:

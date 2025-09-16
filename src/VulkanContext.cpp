@@ -7,6 +7,8 @@
 // https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Instance and
 // https://github.com/bmilde/vulkan_matrix_mul
 
+#define BUF_COUNT 3
+
 static std::vector<char> readShaderFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
