@@ -1,10 +1,28 @@
 #include "VulkanContext.hpp"
 #include <spdlog/spdlog.h>
 #include <stdexcept>
+#include <fstream>
 
 // Created using Vulkan docs at
 // https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Instance and
 // https://github.com/bmilde/vulkan_matrix_mul
+
+static std::vector<char> readShaderFile(const std::string& filename) {
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open shader file!");
+    }
+
+    size_t            fileSize = (size_t)file.tellg();
+    std::vector<char> buffer(fileSize);
+
+    file.seekg(0);
+    file.read(buffer.data(), fileSize);
+    file.close();
+
+    return buffer;
+}
 
 CVulkanContext::CVulkanContext(int matrix_size) : matrixSize(matrix_size) {
     spdlog::debug("Initializing Vulkan Context [{}]", matrixSize);
@@ -152,6 +170,41 @@ void CVulkanContext::createDescriptorSetLayout() {
 
 void CVulkanContext::createComputePipeline() {
     spdlog::debug("Creating compute pipeline.");
+
+    auto                     shaderCode = readShaderFile("shaders/matrix_comp.spv");
+
+    VkShaderModuleCreateInfo shaderModuleInfo{};
+    shaderModuleInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shaderModuleInfo.codeSize = shaderCode.size();
+    shaderModuleInfo.pCode    = reinterpret_cast<const uint32_t*>(shaderCode.data());
+
+    if (vkCreateShaderModule(device, &shaderModuleInfo, nullptr, &computeShaderModule) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create shader module!");
+    }
+
+    VkPipelineShaderStageCreateInfo shaderStageInfo{};
+    shaderStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStageInfo.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
+    shaderStageInfo.module = computeShaderModule;
+    shaderStageInfo.pName  = "main";
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts    = &descriptorSetLayout;
+
+    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create pipeline layout!");
+    }
+
+    VkComputePipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineInfo.stage  = shaderStageInfo;
+    pipelineInfo.layout = pipelineLayout;
+
+    if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create compute pipeline!");
+    }
 
     spdlog::debug("Successfully created compute pipeline.");
 }
