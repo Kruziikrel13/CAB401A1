@@ -1,9 +1,5 @@
-CMakeFiles/
+.envrc
 .direnv/
 .cache/
 build/
-CMakeCache.txt
-cmake_install.cmake
 compile_commands.json
-.envrc
-*.spv
