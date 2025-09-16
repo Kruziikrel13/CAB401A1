@@ -12,6 +12,9 @@ debug:
 clear:
 	rm -rf build/
 
+reset:
+	git clean -ffdx
+
 all:
 	$(MAKE) clear
 	$(MAKE) release
