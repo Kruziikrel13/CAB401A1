@@ -101,7 +101,7 @@ void CVulkanContext::createLogicalDevice() {
              .pQueueCreateInfos    = &queueCreateInfo,
     };
 
-    device       = vk::raii::Device(physicalDevice, createInfo);
+    device       = vk::raii::Device(physicalDevice, createInfo); //FIXME: This causes a memory leak check with Valgrind and use validation layers to verify what's going wrong
     computeQueue = vk::raii::Queue(device, computeQueueFamilyIndex, 0);
 
     spdlog::debug("Logical device created successfully.");
