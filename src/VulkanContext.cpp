@@ -2,10 +2,15 @@
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <fstream>
+#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_handles.hpp>
+#include <vulkan/vulkan_raii.hpp>
+#include <vulkan/vulkan_structs.hpp>
 
 // Created using Vulkan docs at
 // https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Instance and
 // https://github.com/bmilde/vulkan_matrix_mul
+// https://docs.vulkan.org/tutorial/latest/00_Introduction.html
 
 #define BUF_COUNT 3
 
@@ -16,55 +21,49 @@ static std::vector<char> readShaderFile(const std::string& filename) {
         throw std::runtime_error("Failed to open shader file!");
     }
 
-    size_t            fileSize = (size_t)file.tellg();
-    std::vector<char> buffer(fileSize);
+    std::vector<char> buffer(file.tellg());
 
-    file.seekg(0);
-    file.read(buffer.data(), fileSize);
+    file.seekg(0, std::ios::beg);
+    file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
     file.close();
 
     return buffer;
 }
 
 CVulkanContext::CVulkanContext(int matrix_size) : matrixSize(matrix_size) {
-    spdlog::debug("Initializing Vulkan Context [{}]", matrixSize);
+    spdlog::info("Initializing Vulkan Context [{}]", matrixSize);
 
-    // Step One: Instance and Physical Device Selection
-    createInstance();
-    pickPhysicalDevice();
-    createLogicalDevice();
-    createCommandPool();
-    createDescriptorSetLayout();
-    createComputePipeline();
-    createDescriptorPool();
+    try {
+        // Step One: Instance and Physical Device Selection
+        createInstance();
+        pickPhysicalDevice();
+        createLogicalDevice();
+        spdlog::info("Vulkan initialized! With GPU: {}", deviceName);
 
-    spdlog::debug("Vulkan Context initialized successfully.");
-}
+        createCommandPool();
+        createDescriptorSetLayout();
+        createComputePipeline();
+        createDescriptorPool();
+        spdlog::info("Vulkan setup completed and compute shader successfully loaded.");
 
-CVulkanContext::~CVulkanContext() {
-    cleanup();
-    spdlog::debug("Vulkan Context destroyed.");
+    } catch (const vk::SystemError& err) { throw std::runtime_error("Vulkan System Error: " + std::string(err.what())); }
+
+    spdlog::info("Vulkan Context initialized successfully.");
 }
 
 void CVulkanContext::createInstance() {
     spdlog::debug("Creating Vulkan Instance.");
 
     // Optional application info for the Vulkan Instance
-    VkApplicationInfo appInfo{};
-    appInfo.sType              = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName   = "Matrix Multiply";
-    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName        = "No Engine";
-    appInfo.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion         = VK_API_VERSION_1_4;
+    constexpr vk::ApplicationInfo appInfo{.pApplicationName   = "CAB401 Matrix Multiply",
+                                          .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+                                          .pEngineName        = "No Engine",
+                                          .engineVersion      = VK_MAKE_VERSION(1, 0, 0),
+                                          .apiVersion         = vk::ApiVersion14};
 
-    VkInstanceCreateInfo createInfo{};
-    createInfo.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.pApplicationInfo = &appInfo;
+    vk::InstanceCreateInfo        createInfo{.pApplicationInfo = &appInfo};
 
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan Instance!");
-    }
+    instance = vk::raii::Instance(context, createInfo);
 
     spdlog::debug("Vulkan Instance created successfully.");
 }
@@ -72,62 +71,42 @@ void CVulkanContext::createInstance() {
 void CVulkanContext::pickPhysicalDevice() {
     spdlog::debug("Selecting physical device.");
 
-    uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-
-    if (deviceCount == 0) {
-        throw std::runtime_error("Failed to find GPUs with Vulkan Support.");
+    auto devices = instance.enumeratePhysicalDevices();
+    if (devices.empty()) {
+        throw std::runtime_error("Failed to find GPUs with Vulkan support.");
     }
 
-    std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+    for (const auto& device : devices) {
+        auto deviceProperties = device.getProperties();
+        spdlog::debug("Found device: {}", deviceProperties.deviceName.data());
 
-    for (const VkPhysicalDevice& device : devices) {
-        VkPhysicalDeviceProperties deviceProperties;
-        vkGetPhysicalDeviceProperties(device, &deviceProperties);
-        spdlog::debug("Found device: {}", deviceProperties.deviceName);
-
-        uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
-
-        for (uint32_t i = 0; i < queueFamilyCount; ++i) {
-            if (queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT) {
+        auto queueFamilyProperties = device.getQueueFamilyProperties();
+        for (uint32_t i = 0; i < queueFamilyProperties.size(); ++i) {
+            if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eCompute) {
                 physicalDevice          = device;
                 computeQueueFamilyIndex = i;
-                spdlog::debug("Selected device: {}", deviceProperties.deviceName);
+                deviceName              = deviceProperties.deviceName.data();
+                spdlog::debug("Selected device with compute support: {}", deviceName);
                 return;
             }
         }
-    }
+    };
 
-    throw std::runtime_error("Failed to find a suitable GPU with compute capabilities!");
+    throw std::runtime_error("Failed to find a suitable GPU with compute capabilities.");
 }
 
 void CVulkanContext::createLogicalDevice() {
     spdlog::debug("Creating a logical device.");
 
-    float                   queuePriority = 1.0f;
+    float                     queuePriority = 1.0f;
+    vk::DeviceQueueCreateInfo queueCreateInfo{.queueFamilyIndex = computeQueueFamilyIndex, .queueCount = 1, .pQueuePriorities = &queuePriority};
+    vk::DeviceCreateInfo      createInfo{
+             .queueCreateInfoCount = 1,
+             .pQueueCreateInfos    = &queueCreateInfo,
+    };
 
-    VkDeviceQueueCreateInfo queueCreateInfo{};
-    queueCreateInfo.sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueCreateInfo.queueFamilyIndex = computeQueueFamilyIndex;
-    queueCreateInfo.queueCount       = 1;
-    queueCreateInfo.pQueuePriorities = &queuePriority;
-
-    VkPhysicalDeviceFeatures deviceFeatures{};
-    VkDeviceCreateInfo       createInfo{};
-    createInfo.sType                = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.pQueueCreateInfos    = &queueCreateInfo;
-    createInfo.queueCreateInfoCount = 1;
-    createInfo.pEnabledFeatures     = &deviceFeatures;
-
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create a logical device.");
-    }
-
-    vkGetDeviceQueue(device, computeQueueFamilyIndex, 0, &computeQueue);
+    device       = vk::raii::Device(physicalDevice, createInfo);
+    computeQueue = vk::raii::Queue(device, computeQueueFamilyIndex, 0);
 
     spdlog::debug("Logical device created successfully.");
 }
@@ -135,78 +114,79 @@ void CVulkanContext::createLogicalDevice() {
 void CVulkanContext::createCommandPool() {
     spdlog::debug("Creating command pool");
 
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = computeQueueFamilyIndex;
-    poolInfo.flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    vk::CommandPoolCreateInfo poolInfo{
+        .flags            = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+        .queueFamilyIndex = computeQueueFamilyIndex,
+    };
 
-    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create a command pool.");
-    }
+    commandPool = vk::raii::CommandPool(device, poolInfo);
+
     spdlog::debug("Successfully created command pool.");
 }
 
 void CVulkanContext::createDescriptorSetLayout() {
     spdlog::debug("Creating descriptor set layout.");
 
-    std::vector<VkDescriptorSetLayoutBinding> bindings(BUF_COUNT);
+    std::vector<vk::DescriptorSetLayoutBinding> bindings(BUF_COUNT);
 
     for (int i = 0; i < BUF_COUNT; i++) {
-        bindings[i].binding         = i;
-        bindings[i].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindings[i].descriptorCount = 1;
-        bindings[i].stageFlags      = VK_SHADER_STAGE_COMPUTE_BIT;
+        bindings[i] = vk::DescriptorSetLayoutBinding{
+            .binding         = i,
+            .descriptorType  = vk::DescriptorType::eStorageBuffer,
+            .descriptorCount = 1,
+            .stageFlags      = vk::ShaderStageFlagBits::eCompute,
+        };
     }
 
-    VkDescriptorSetLayoutCreateInfo layoutInfo{};
-    layoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-    layoutInfo.pBindings    = bindings.data();
+    vk::DescriptorSetLayoutCreateInfo layoutInfo{
+        .bindingCount = bindings.size(),
+        .pBindings    = bindings.data(),
+    };
 
-    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create a descriptor set layout");
-    }
+    descriptorSetLayout = vk::raii::DescriptorSetLayout(device, layoutInfo);
 
     spdlog::debug("Descriptor set layout created successfully.");
 }
 
 void CVulkanContext::createComputePipeline() {
     spdlog::debug("Creating compute pipeline.");
+    auto                       shaderCode = readShaderFile("shaders/matrix_comp.spv");
 
-    auto                     shaderCode = readShaderFile("shaders/matrix_comp.spv");
+    vk::ShaderModuleCreateInfo shaderModuleInfo{
+        .codeSize = shaderCode.size() * sizeof(char),
+        .pCode    = reinterpret_cast<const uint32_t*>(shaderCode.data()),
+    };
 
-    VkShaderModuleCreateInfo shaderModuleInfo{};
-    shaderModuleInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    shaderModuleInfo.codeSize = shaderCode.size();
-    shaderModuleInfo.pCode    = reinterpret_cast<const uint32_t*>(shaderCode.data());
+    computeShaderModule = vk::raii::ShaderModule(device, shaderModuleInfo);
+    spdlog::debug("Created compute shader module.");
 
-    if (vkCreateShaderModule(device, &shaderModuleInfo, nullptr, &computeShaderModule) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create shader module!");
-    }
+    vk::PipelineShaderStageCreateInfo shaderStageInfo{
+        .stage  = vk::ShaderStageFlagBits::eCompute,
+        .module = computeShaderModule,
+        .pName  = "main",
+    };
 
-    VkPipelineShaderStageCreateInfo shaderStageInfo{};
-    shaderStageInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shaderStageInfo.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
-    shaderStageInfo.module = computeShaderModule;
-    shaderStageInfo.pName  = "main";
+    vk::PushConstantRange pushConstantRange{
+        .stageFlags = vk::ShaderStageFlagBits::eCompute,
+        .offset     = 0,
+        .size       = sizeof(uint32_t),
+    };
 
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts    = &descriptorSetLayout;
+    vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
+        .setLayoutCount         = 1,
+        .pSetLayouts            = &*descriptorSetLayout,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges    = &pushConstantRange,
+    };
+    pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
+    spdlog::debug("Created pipeline layout.");
 
-    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create pipeline layout!");
-    }
-
-    VkComputePipelineCreateInfo pipelineInfo{};
-    pipelineInfo.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-    pipelineInfo.stage  = shaderStageInfo;
-    pipelineInfo.layout = pipelineLayout;
-
-    if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create compute pipeline!");
-    }
+    const vk::ComputePipelineCreateInfo pipelineInfo{
+        .stage  = shaderStageInfo,
+        .layout = pipelineLayout,
+    };
+    computePipeline = device.createComputePipeline(VK_NULL_HANDLE, pipelineInfo);
+    spdlog::debug("Created compute pipeline.");
 
     spdlog::debug("Successfully created compute pipeline.");
 }
@@ -214,84 +194,18 @@ void CVulkanContext::createComputePipeline() {
 void CVulkanContext::createDescriptorPool() {
     spdlog::debug("Creating Descriptor Pool.");
 
-    std::vector<VkDescriptorPoolSize> poolSizes(1);
-    poolSizes[0].type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes[0].descriptorCount = 3;
+    vk::DescriptorPoolSize poolSize{
+        .type            = vk::DescriptorType::eStorageBuffer,
+        .descriptorCount = BUF_COUNT,
+    };
 
-    VkDescriptorPoolCreateInfo poolInfo{};
-    poolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-    poolInfo.pPoolSizes    = poolSizes.data();
-    poolInfo.maxSets       = 1;
+    vk::DescriptorPoolCreateInfo poolInfo{
+        .maxSets       = 1,
+        .poolSizeCount = 1,
+        .pPoolSizes    = &poolSize,
+    };
 
-    if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create descriptor pool!");
-    }
+    descriptorPool = vk::raii::DescriptorPool(device, poolInfo);
 
     spdlog::debug("Descriptor Pool created successfully.");
-}
-
-void CVulkanContext::createDescriptorSets() {
-    spdlog::debug("Allocating and updating descriptor sets.");
-
-    VkDescriptorSetAllocateInfo allocInfo{};
-    allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool     = descriptorPool;
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts        = &descriptorSetLayout;
-
-    if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate descriptor set!");
-    }
-
-    VkDescriptorBufferInfo bufferInfoA{};
-    bufferInfoA.buffer = bufferA;
-    bufferInfoA.offset = 0;
-    bufferInfoA.range  = VK_WHOLE_SIZE;
-
-    VkDescriptorBufferInfo bufferInfoB{};
-    bufferInfoB.buffer = bufferB;
-    bufferInfoB.offset = 0;
-    bufferInfoB.range  = VK_WHOLE_SIZE;
-
-    VkDescriptorBufferInfo bufferInfoC{};
-    bufferInfoC.buffer = bufferC;
-    bufferInfoC.offset = 0;
-    bufferInfoC.range  = VK_WHOLE_SIZE;
-
-    std::vector<VkWriteDescriptorSet> descriptorWrites(3);
-
-    descriptorWrites[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[0].dstSet          = descriptorSet;
-    descriptorWrites[0].dstBinding      = 0;
-    descriptorWrites[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorWrites[0].descriptorCount = 1;
-    descriptorWrites[0].pBufferInfo     = &bufferInfoA;
-
-    descriptorWrites[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[1].dstSet          = descriptorSet;
-    descriptorWrites[1].dstBinding      = 1;
-    descriptorWrites[1].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorWrites[1].descriptorCount = 1;
-    descriptorWrites[1].pBufferInfo     = &bufferInfoB;
-
-    descriptorWrites[2].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[2].dstSet          = descriptorSet;
-    descriptorWrites[2].dstBinding      = 2;
-    descriptorWrites[2].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    descriptorWrites[2].descriptorCount = 1;
-    descriptorWrites[2].pBufferInfo     = &bufferInfoC;
-
-    vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-
-    spdlog::debug("Descriptor Sets allocated and updated successfully.");
-}
-
-void CVulkanContext::cleanup() {
-    spdlog::debug("Cleaning up Vulkan Context Resources.");
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr); // This presently crashes
-    vkDestroyCommandPool(device, commandPool, nullptr);
-    vkDestroyDevice(device, nullptr);
-    vkDestroyInstance(instance, nullptr);
-    spdlog::debug("Vulkan Context Resources cleaned up successfully.");
 }
