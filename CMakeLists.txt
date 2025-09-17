@@ -59,6 +59,10 @@ endif()
 find_package(Vulkan REQUIRED)
 target_include_directories(vulkan PRIVATE ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(vulkan ${Vulkan_LIBRARIES})
+target_compile_definitions(vulkan PRIVATE
+        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+        VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
+)
 
 find_package(spdlog REQUIRED)
 target_link_libraries(vulkan spdlog::spdlog)
