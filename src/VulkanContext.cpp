@@ -2,10 +2,6 @@
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <fstream>
-#include <vulkan/vulkan_core.h>
-#include <vulkan/vulkan_handles.hpp>
-#include <vulkan/vulkan_raii.hpp>
-#include <vulkan/vulkan_structs.hpp>
 
 // Created using Vulkan docs at
 // https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Instance and
