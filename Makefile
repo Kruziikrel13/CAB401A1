@@ -22,7 +22,7 @@ all:
 .PHONY: shaders
 shaders:
 	mkdir -p build/shaders
-	glslangValidator -V shaders/shader.comp -o build/shaders/comp.spv
+	glslangValidator -V shaders/shader.comp -o build/shaders/matrix_comp.spv
 
 asan:
 	cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Debug -DWITH_ASAN:STRING=True -S . -B ./build
