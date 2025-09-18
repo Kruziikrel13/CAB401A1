@@ -34,8 +34,12 @@ add_library(common STATIC
   src/common.cpp)
 target_include_directories(common PUBLIC include)
 
+find_package(spdlog REQUIRED)
+
 # Sequential Prog
-add_executable(sequential src/sequential.cpp)
+add_executable(cpu src/cpu.cpp)
+target_link_libraries(cpu PRIVATE common)
+target_link_libraries(cpu PRIVATE spdlog::spdlog)
 
 # Vulkan Prog
 add_executable(vulkan
@@ -70,6 +74,4 @@ target_compile_definitions(vulkan PRIVATE
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
         VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
 )
-
-find_package(spdlog REQUIRED)
-target_link_libraries(vulkan spdlog::spdlog)
+target_link_libraries(vulkan PRIVATE spdlog::spdlog)
