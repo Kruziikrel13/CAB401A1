@@ -21,8 +21,8 @@ class CVulkanContext {
     void                          createDescriptorPool();
     void                          createDescriptorSets();
     void                          createBuffers(float* matrixA, float* matrixB, float* matrixC, int matrix_size);
-    void                          allocateBufferMemory(VkBuffer buffer, VkDeviceMemory* bufferMemory, VkDeviceSize size, VkMemoryPropertyFlags properties);
-    uint32_t                      findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    void                          allocateBufferMemory(vk::raii::Buffer& buffer, vk::raii::DeviceMemory& bufferMemory, vk::MemoryPropertyFlags properties);
+    uint32_t                      findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
     void                          recordCommandBuffer();
     void                          cleanup();
 
@@ -37,12 +37,14 @@ class CVulkanContext {
     vk::raii::ShaderModule        computeShaderModule = nullptr;
     vk::raii::PipelineLayout      pipelineLayout      = nullptr;
     vk::raii::DescriptorPool      descriptorPool      = nullptr;
-
-    VkCommandBuffer               commandBuffer;
-    VkDescriptorSet               descriptorSet;
-
-    VkBuffer                      bufferA, bufferB, bufferC;
-    VkDeviceMemory                bufferMemoryA, bufferMemoryB, bufferMemoryC;
+    vk::raii::CommandBuffer       commandBuffer       = nullptr;
+    vk::raii::DescriptorSet       descriptorSet       = nullptr;
+    vk::raii::Buffer              bufferA             = nullptr;
+    vk::raii::Buffer              bufferB             = nullptr;
+    vk::raii::Buffer              bufferC             = nullptr;
+    vk::raii::DeviceMemory        bufferMemoryA       = nullptr;
+    vk::raii::DeviceMemory        bufferMemoryB       = nullptr;
+    vk::raii::DeviceMemory        bufferMemoryC       = nullptr;
 
     uint32_t                      computeQueueFamilyIndex;
 };

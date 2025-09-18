@@ -204,4 +204,34 @@ void CVulkanContext::createDescriptorPool() {
     descriptorPool = vk::raii::DescriptorPool(device, poolInfo);
 
     spdlog::debug("Descriptor Pool created successfully.");
+
+uint32_t CVulkanContext::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) {
+    spdlog::trace("Finding suitable memory type.");
+    vk::PhysicalDeviceMemoryProperties memProperties = physicalDevice.getMemoryProperties();
+
+    for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+            spdlog::trace("Found suitable memory type: {}", i);
+            return i;
+        }
+    }
+
+    throw std::runtime_error("Failed to find suitable memory type.");
+}
+
+void CVulkanContext::allocateBufferMemory(vk::raii::Buffer& buffer, vk::raii::DeviceMemory& bufferMemory, vk::MemoryPropertyFlags properties) {
+    vk::MemoryRequirements memRequirements = buffer.getMemoryRequirements();
+    vk::MemoryAllocateInfo allocInfo{
+        .allocationSize  = memRequirements.size,
+        .memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties),
+    };
+    bufferMemory = vk::raii::DeviceMemory(device, allocInfo);
+    buffer.bindMemory(*bufferMemory, 0);
+}
+
+void CVulkanContext::runComputeShader(float* matrixA, float* matrixB, float* matrixC) {
+    spdlog::info("Running compute shader.");
+
+    spdlog::trace("Resetting descriptor pool.");
+    descriptorPool.reset();
 }
