@@ -48,7 +48,7 @@ CVulkanContext::CVulkanContext(int matrix_size) : matrixSize(matrix_size) {
 }
 
 void CVulkanContext::createInstance() {
-    spdlog::debug("Creating Vulkan Instance.");
+    spdlog::trace("Creating Vulkan Instance.");
 
     // Optional application info for the Vulkan Instance
     constexpr vk::ApplicationInfo appInfo{.pApplicationName   = "CAB401 Matrix Multiply",
@@ -61,16 +61,15 @@ void CVulkanContext::createInstance() {
 
     instance = vk::raii::Instance(context, createInfo);
 
-    spdlog::debug("Vulkan Instance created successfully.");
+    spdlog::trace("Vulkan Instance created successfully.");
 }
 
 void CVulkanContext::pickPhysicalDevice() {
-    spdlog::debug("Selecting physical device.");
+    spdlog::trace("Selecting physical device.");
 
     auto devices = instance.enumeratePhysicalDevices();
-    if (devices.empty()) {
+    if (devices.empty())
         throw std::runtime_error("Failed to find GPUs with Vulkan support.");
-    }
 
     for (const auto& device : devices) {
         auto deviceProperties = device.getProperties();
@@ -92,7 +91,7 @@ void CVulkanContext::pickPhysicalDevice() {
 }
 
 void CVulkanContext::createLogicalDevice() {
-    spdlog::debug("Creating a logical device.");
+    spdlog::trace("Creating a logical device.");
 
     float                     queuePriority = 1.0f;
     vk::DeviceQueueCreateInfo queueCreateInfo{.queueFamilyIndex = computeQueueFamilyIndex, .queueCount = 1, .pQueuePriorities = &queuePriority};
@@ -100,15 +99,15 @@ void CVulkanContext::createLogicalDevice() {
              .queueCreateInfoCount = 1,
              .pQueueCreateInfos    = &queueCreateInfo,
     };
-
-    device       = vk::raii::Device(physicalDevice, createInfo); //FIXME: This causes a memory leak check with Valgrind and use validation layers to verify what's going wrong
+    //FIXME: ASan detects a memory leak coming from here, use vulkan validation layers to verify what's going wrong
+    device       = vk::raii::Device(physicalDevice, createInfo);
     computeQueue = vk::raii::Queue(device, computeQueueFamilyIndex, 0);
 
-    spdlog::debug("Logical device created successfully.");
+    spdlog::trace("Logical device created successfully.");
 }
 
 void CVulkanContext::createCommandPool() {
-    spdlog::debug("Creating command pool");
+    spdlog::trace("Creating command pool");
 
     vk::CommandPoolCreateInfo poolInfo{
         .flags            = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
@@ -117,11 +116,11 @@ void CVulkanContext::createCommandPool() {
 
     commandPool = vk::raii::CommandPool(device, poolInfo);
 
-    spdlog::debug("Successfully created command pool.");
+    spdlog::trace("Successfully created command pool.");
 }
 
 void CVulkanContext::createDescriptorSetLayout() {
-    spdlog::debug("Creating descriptor set layout.");
+    spdlog::trace("Creating descriptor set layout.");
 
     std::vector<vk::DescriptorSetLayoutBinding> bindings(BUF_COUNT);
 
@@ -141,11 +140,11 @@ void CVulkanContext::createDescriptorSetLayout() {
 
     descriptorSetLayout = vk::raii::DescriptorSetLayout(device, layoutInfo);
 
-    spdlog::debug("Descriptor set layout created successfully.");
+    spdlog::trace("Descriptor set layout created successfully.");
 }
 
 void CVulkanContext::createComputePipeline() {
-    spdlog::debug("Creating compute pipeline.");
+    spdlog::trace("Creating compute pipeline.");
     auto                       shaderCode = readShaderFile("shaders/matrix_comp.spv");
 
     vk::ShaderModuleCreateInfo shaderModuleInfo{
@@ -154,7 +153,7 @@ void CVulkanContext::createComputePipeline() {
     };
 
     computeShaderModule = vk::raii::ShaderModule(device, shaderModuleInfo);
-    spdlog::debug("Created compute shader module.");
+    spdlog::trace("Created compute shader module.");
 
     vk::PipelineShaderStageCreateInfo shaderStageInfo{
         .stage  = vk::ShaderStageFlagBits::eCompute,
@@ -175,20 +174,20 @@ void CVulkanContext::createComputePipeline() {
         .pPushConstantRanges    = &pushConstantRange,
     };
     pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
-    spdlog::debug("Created pipeline layout.");
+    spdlog::trace("Created pipeline layout.");
 
     const vk::ComputePipelineCreateInfo pipelineInfo{
         .stage  = shaderStageInfo,
         .layout = pipelineLayout,
     };
     computePipeline = device.createComputePipeline(VK_NULL_HANDLE, pipelineInfo);
-    spdlog::debug("Created compute pipeline.");
+    spdlog::trace("Created compute pipeline.");
 
-    spdlog::debug("Successfully created compute pipeline.");
+    spdlog::trace("Successfully created compute pipeline.");
 }
 
 void CVulkanContext::createDescriptorPool() {
-    spdlog::debug("Creating Descriptor Pool.");
+    spdlog::trace("Creating Descriptor Pool.");
 
     vk::DescriptorPoolSize poolSize{
         .type            = vk::DescriptorType::eStorageBuffer,
@@ -203,7 +202,8 @@ void CVulkanContext::createDescriptorPool() {
 
     descriptorPool = vk::raii::DescriptorPool(device, poolInfo);
 
-    spdlog::debug("Descriptor Pool created successfully.");
+    spdlog::trace("Descriptor Pool created successfully.");
+}
 
 uint32_t CVulkanContext::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) {
     spdlog::trace("Finding suitable memory type.");
