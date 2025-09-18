@@ -24,7 +24,6 @@ class CVulkanContext {
     void                          allocateBufferMemory(vk::raii::Buffer& buffer, vk::raii::DeviceMemory& bufferMemory, vk::MemoryPropertyFlags properties);
     uint32_t                      findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
     void                          recordCommandBuffer();
-    void                          cleanup();
 
     vk::raii::Context             context;
     vk::raii::Instance            instance            = nullptr;
