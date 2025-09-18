@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.30)
-
+include(FetchContent)
 # Get version
 file(READ "${CMAKE_SOURCE_DIR}/VERSION" VER_RAW)
 string(STRIP ${VER_RAW} VER)
@@ -37,26 +37,33 @@ target_include_directories(common PUBLIC include)
 find_package(spdlog REQUIRED)
 
 # Sequential Prog
-add_executable(cpu src/cpu.cpp)
-target_link_libraries(cpu PRIVATE common)
-target_link_libraries(cpu PRIVATE spdlog::spdlog)
+add_executable(sequential src/sequential.cpp)
+target_link_libraries(sequential PRIVATE common)
+target_link_libraries(sequential PRIVATE spdlog::spdlog)
 
 # Vulkan Prog
 add_executable(vulkan
   src/vulkan.cpp
   src/VulkanContext.cpp)
+target_link_libraries(vulkan PRIVATE common)
 
 if(CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES DEBUG)
   message(STATUS "Configuring ${PROJECT_NAME} in Debug with CMake")
 
   if(TRACE OR WITH_ASAN)
+    target_compile_definitions(sequential PRIVATE -DTRACE)
     target_compile_definitions(vulkan PRIVATE -DTRACE)
+    target_compile_options(sequential PRIVATE -O0 -g)
+    target_compile_options(vulkan PRIVATE -O0 -g)
   endif()
 
   if(WITH_ASAN)
     message(STATUS "Enabling ASan")
 
-    target_link_libraries(vulkan asan)
+    target_link_libraries(sequential PRIVATE asan)
+    target_compile_options(sequential PRIVATE -fsanitize=address)
+
+    target_link_libraries(vulkan PRIVATE asan)
     target_compile_options(vulkan PRIVATE -fsanitize=address)
   endif()
 
@@ -69,7 +76,7 @@ endif()
 
 find_package(Vulkan REQUIRED)
 target_include_directories(vulkan PRIVATE ${Vulkan_INCLUDE_DIRS})
-target_link_libraries(vulkan ${Vulkan_LIBRARIES})
+target_link_libraries(vulkan PRIVATE ${Vulkan_LIBRARIES})
 target_compile_definitions(vulkan PRIVATE
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
         VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1

@@ -17,7 +17,7 @@ std::vector<float> NCommon::generateRandomMatrix(size_t size) {
 }
 
 void NCommon::writeToBinary(std::vector<float>& matrix, std::string filename) {
-    std::ofstream file("vulkan.bin", std::ios::out | std::ios::binary);
+    std::ofstream file(filename, std::ios::out | std::ios::binary);
     file.write(reinterpret_cast<const char*>(matrix.data()), matrix.size() * sizeof(float));
     file.close();
 }

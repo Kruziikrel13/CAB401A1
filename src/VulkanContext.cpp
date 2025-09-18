@@ -4,11 +4,8 @@
 #include <fstream>
 
 // Created using Vulkan docs at
-// https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Instance and
 // https://github.com/bmilde/vulkan_matrix_mul
 // https://docs.vulkan.org/tutorial/latest/00_Introduction.html
-
-#define BUF_COUNT 3
 
 static std::vector<char> readShaderFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
@@ -42,9 +39,31 @@ CVulkanContext::CVulkanContext(int matrix_size) : matrixSize(matrix_size) {
         createDescriptorPool();
         spdlog::info("Vulkan setup completed and compute shader successfully loaded.");
 
-    } catch (const vk::SystemError& err) { throw std::runtime_error("Vulkan System Error: " + std::string(err.what())); }
+    } catch (const vk::SystemError& err) {
+        spdlog::error("Vulkan System Error: {}", err.what());
+        throw std::runtime_error("Failed to initialize Vulkan Context");
+    } catch (const std::runtime_error& err) {
+        spdlog::error("Runtime Error: {}", err.what());
+        throw std::runtime_error("Failed to initialize Vulkan Context.");
+    }
 
     spdlog::info("Vulkan Context initialized successfully.");
+}
+
+CVulkanContext::~CVulkanContext() {
+    spdlog::trace("Destroying Vulkan Context.");
+
+    // cleanup arrays
+    for (auto& buffer : buffers) {
+        buffer = nullptr;
+    }
+
+    for (auto& memory : bufferMemories) {
+        memory = nullptr;
+    }
+
+    // Resources are automatically cleaned up by vk::raii destructors
+    spdlog::trace("Vulkan Context destroyed successfully.");
 }
 
 void CVulkanContext::createInstance() {
@@ -56,7 +75,6 @@ void CVulkanContext::createInstance() {
                                           .pEngineName        = "No Engine",
                                           .engineVersion      = VK_MAKE_VERSION(1, 0, 0),
                                           .apiVersion         = vk::ApiVersion14};
-
     vk::InstanceCreateInfo        createInfo{.pApplicationInfo = &appInfo};
 
     instance = vk::raii::Instance(context, createInfo);
@@ -67,11 +85,11 @@ void CVulkanContext::createInstance() {
 void CVulkanContext::pickPhysicalDevice() {
     spdlog::trace("Selecting physical device.");
 
-    auto devices = instance.enumeratePhysicalDevices();
+    std::vector<vk::raii::PhysicalDevice> devices = instance.enumeratePhysicalDevices();
     if (devices.empty())
         throw std::runtime_error("Failed to find GPUs with Vulkan support.");
 
-    for (const auto& device : devices) {
+    for (const vk::raii::PhysicalDevice& device : devices) {
         auto deviceProperties = device.getProperties();
         spdlog::debug("Found device: {}", deviceProperties.deviceName.data());
 
@@ -93,15 +111,22 @@ void CVulkanContext::pickPhysicalDevice() {
 void CVulkanContext::createLogicalDevice() {
     spdlog::trace("Creating a logical device.");
 
-    float                     queuePriority = 1.0f;
-    vk::DeviceQueueCreateInfo queueCreateInfo{.queueFamilyIndex = computeQueueFamilyIndex, .queueCount = 1, .pQueuePriorities = &queuePriority};
-    vk::DeviceCreateInfo      createInfo{
-             .queueCreateInfoCount = 1,
-             .pQueueCreateInfos    = &queueCreateInfo,
+    float                      queuePriority = 1.0f;
+    vk::DeviceQueueCreateInfo  queueCreateInfo{.queueFamilyIndex = computeQueueFamilyIndex, .queueCount = 1, .pQueuePriorities = &queuePriority};
+
+    vk::PhysicalDeviceFeatures features{};
+#ifdef NDEBUG
+    features.robustBufferAccess = VK_FALSE;
+#endif
+    spdlog::trace("Retrieved device features and queue info for logical device creation.");
+    vk::DeviceCreateInfo createInfo{
+        .queueCreateInfoCount = 1,
+        .pQueueCreateInfos    = &queueCreateInfo,
+        .pEnabledFeatures     = &features,
     };
     //FIXME: ASan detects a memory leak coming from here, use vulkan validation layers to verify what's going wrong
-    device       = vk::raii::Device(physicalDevice, createInfo);
-    computeQueue = vk::raii::Queue(device, computeQueueFamilyIndex, 0);
+    device       = physicalDevice.createDevice(createInfo);
+    computeQueue = device.getQueue(computeQueueFamilyIndex, 0);
 
     spdlog::trace("Logical device created successfully.");
 }
@@ -114,7 +139,7 @@ void CVulkanContext::createCommandPool() {
         .queueFamilyIndex = computeQueueFamilyIndex,
     };
 
-    commandPool = vk::raii::CommandPool(device, poolInfo);
+    commandPool = device.createCommandPool(poolInfo);
 
     spdlog::trace("Successfully created command pool.");
 }
@@ -122,9 +147,9 @@ void CVulkanContext::createCommandPool() {
 void CVulkanContext::createDescriptorSetLayout() {
     spdlog::trace("Creating descriptor set layout.");
 
-    std::vector<vk::DescriptorSetLayoutBinding> bindings(BUF_COUNT);
+    std::vector<vk::DescriptorSetLayoutBinding> bindings(buffers.size());
 
-    for (int i = 0; i < BUF_COUNT; i++) {
+    for (size_t i = 0; i < buffers.size(); i++) {
         bindings[i] = vk::DescriptorSetLayoutBinding{
             .binding         = i,
             .descriptorType  = vk::DescriptorType::eStorageBuffer,
@@ -138,7 +163,7 @@ void CVulkanContext::createDescriptorSetLayout() {
         .pBindings    = bindings.data(),
     };
 
-    descriptorSetLayout = vk::raii::DescriptorSetLayout(device, layoutInfo);
+    descriptorSetLayout = device.createDescriptorSetLayout(layoutInfo);
 
     spdlog::trace("Descriptor set layout created successfully.");
 }
@@ -152,7 +177,7 @@ void CVulkanContext::createComputePipeline() {
         .pCode    = reinterpret_cast<const uint32_t*>(shaderCode.data()),
     };
 
-    computeShaderModule = vk::raii::ShaderModule(device, shaderModuleInfo);
+    computeShaderModule = device.createShaderModule(shaderModuleInfo);
     spdlog::trace("Created compute shader module.");
 
     vk::PipelineShaderStageCreateInfo shaderStageInfo{
@@ -189,20 +214,83 @@ void CVulkanContext::createComputePipeline() {
 void CVulkanContext::createDescriptorPool() {
     spdlog::trace("Creating Descriptor Pool.");
 
-    vk::DescriptorPoolSize poolSize{
-        .type            = vk::DescriptorType::eStorageBuffer,
-        .descriptorCount = BUF_COUNT,
-    };
+    vk::DescriptorPoolSize       poolSize{.type = vk::DescriptorType::eStorageBuffer, .descriptorCount = buffers.size()};
 
     vk::DescriptorPoolCreateInfo poolInfo{
+        .flags         = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
         .maxSets       = 1,
         .poolSizeCount = 1,
         .pPoolSizes    = &poolSize,
     };
 
-    descriptorPool = vk::raii::DescriptorPool(device, poolInfo);
+    descriptorPool = device.createDescriptorPool(poolInfo);
 
     spdlog::trace("Descriptor Pool created successfully.");
+}
+
+void CVulkanContext::createBuffers(float* matrixA, float* matrixB, float* matrixC, int matrix_size) {
+    spdlog::trace("Creating buffers for matrices.");
+
+    vk::DeviceSize                    bufferSize       = sizeof(float) * matrix_size * matrix_size;
+    constexpr vk::MemoryPropertyFlags commonProperties = vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
+
+    for (size_t i = 0; i < buffers.size(); i++) {
+        buffers[i] = device.createBuffer({
+            .size        = bufferSize,
+            .usage       = vk::BufferUsageFlagBits::eStorageBuffer,
+            .sharingMode = vk::SharingMode::eExclusive,
+        });
+        allocateBufferMemory(buffers[i], bufferMemories[i], commonProperties);
+    }
+
+    createDescriptorSets();
+
+    spdlog::trace("Successfully created buffers for matrices.");
+}
+
+void CVulkanContext::createDescriptorSets() {
+    spdlog::trace("Allocating and updating descriptor sets.");
+    std::vector<vk::DescriptorSetLayout> layouts(1, *descriptorSetLayout);
+
+    vk::DescriptorSetAllocateInfo        allocInfo{.descriptorPool = descriptorPool, .descriptorSetCount = static_cast<uint32_t>(layouts.size()), .pSetLayouts = layouts.data()};
+
+    descriptorSet = std::move(device.allocateDescriptorSets(allocInfo).front());
+
+    vk::DescriptorBufferInfo            bufInfoA{.buffer = buffers[0], .offset = 0, .range = VK_WHOLE_SIZE};
+    vk::DescriptorBufferInfo            bufInfoB{.buffer = buffers[1], .offset = 0, .range = VK_WHOLE_SIZE};
+    vk::DescriptorBufferInfo            bufInfoC{.buffer = buffers[2], .offset = 0, .range = VK_WHOLE_SIZE};
+    std::vector<vk::WriteDescriptorSet> descriptorWrites(buffers.size());
+
+    descriptorWrites[0] = vk::WriteDescriptorSet{
+        .dstSet          = descriptorSet,
+        .dstBinding      = 0,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType  = vk::DescriptorType::eStorageBuffer,
+        .pBufferInfo     = &bufInfoA,
+    };
+
+    descriptorWrites[1] = vk::WriteDescriptorSet{
+        .dstSet          = descriptorSet,
+        .dstBinding      = 1,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType  = vk::DescriptorType::eStorageBuffer,
+        .pBufferInfo     = &bufInfoB,
+    };
+
+    descriptorWrites[2] = vk::WriteDescriptorSet{
+        .dstSet          = descriptorSet,
+        .dstBinding      = 2,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType  = vk::DescriptorType::eStorageBuffer,
+        .pBufferInfo     = &bufInfoC,
+    };
+
+    device.updateDescriptorSets(descriptorWrites, nullptr);
+
+    spdlog::trace("Successfully allocated descriptor sets.");
 }
 
 uint32_t CVulkanContext::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) {
@@ -229,9 +317,53 @@ void CVulkanContext::allocateBufferMemory(vk::raii::Buffer& buffer, vk::raii::De
     buffer.bindMemory(*bufferMemory, 0);
 }
 
-void CVulkanContext::runComputeShader(float* matrixA, float* matrixB, float* matrixC) {
-    spdlog::info("Running compute shader.");
+std::vector<float> CVulkanContext::runComputeShader(float* matrixA, float* matrixB, size_t matrix_size) {
+    spdlog::trace("Running compute shader.");
+    std::vector<float> matrixC(matrix_size * matrix_size, 0.0f);
 
     spdlog::trace("Resetting descriptor pool.");
     descriptorPool.reset();
+
+    createBuffers(matrixA, matrixB, matrixC.data(), matrix_size);
+
+    vk::CommandBufferAllocateInfo allocInfo{.commandPool = commandPool, .level = vk::CommandBufferLevel::ePrimary, .commandBufferCount = 1};
+    commandBuffer = std::move(device.allocateCommandBuffers(allocInfo).front());
+
+    vk::CommandBufferBeginInfo beginInfo{};
+    commandBuffer.begin(beginInfo);
+
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, *computePipeline);
+    commandBuffer.bindDescriptorSets2({
+        .stageFlags         = vk::ShaderStageFlagBits::eCompute,
+        .layout             = *pipelineLayout,
+        .firstSet           = 0,
+        .descriptorSetCount = 1,
+        .pDescriptorSets    = &*descriptorSet,
+    });
+    commandBuffer.pushConstants2({.layout = *pipelineLayout, .stageFlags = vk::ShaderStageFlagBits::eCompute, .offset = 0, .size = sizeof(uint32_t), .pValues = &matrix_size});
+
+    uint32_t workGroupSize = 16;
+    uint32_t dispatch      = (matrix_size + workGroupSize - 1) / workGroupSize;
+    commandBuffer.dispatch(dispatch, dispatch, 1);
+    commandBuffer.end();
+
+    vk::SubmitInfo submitInfo{
+        .commandBufferCount = 1,
+        .pCommandBuffers    = &*commandBuffer,
+    };
+    vk::raii::Fence fence = device.createFence({});
+    computeQueue.submit(submitInfo, *fence);
+    auto fenceResult = device.waitForFences(*fence, VK_TRUE, UINT64_MAX);
+    if (fenceResult != vk::Result::eSuccess) {
+        throw std::runtime_error("Failed to wait for fence.");
+    }
+
+    vk::DeviceSize bufferSize = sizeof(float) * matrix_size * matrix_size;
+    void*          mapped     = device.mapMemory2({.memory = *bufferMemories[2], .offset = 0, .size = bufferSize});
+    std::memcpy(matrixC.data(), mapped, sizeof(float) * matrix_size * matrix_size);
+    device.unmapMemory2({
+        .memory = *bufferMemories[2],
+    });
+
+    return matrixC;
 }
