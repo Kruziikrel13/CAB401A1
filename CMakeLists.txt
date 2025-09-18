@@ -29,7 +29,10 @@ add_compile_options(
 set(CMAKE_EXECUTABLE_ENABLE_EXPORTS TRUE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-include_directories(include/)
+include_directories(include)
+add_library(common STATIC
+  src/common.cpp)
+target_include_directories(common PUBLIC include)
 
 # Sequential Prog
 add_executable(sequential src/sequential.cpp)
