@@ -42,11 +42,15 @@ add_executable(vulkan
 if(CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES DEBUG)
   message(STATUS "Configuring ${PROJECT_NAME} in Debug with CMake")
 
+  if(TRACE OR WITH_ASAN)
+    target_compile_definitions(vulkan PRIVATE -DTRACE)
+  endif()
+
   if(WITH_ASAN)
     message(STATUS "Enabling ASan")
 
     target_link_libraries(vulkan asan)
-    target_compile_options(vulkan PUBLIC -fsanitize=address)
+    target_compile_options(vulkan PRIVATE -fsanitize=address)
   endif()
 
   add_compile_options(-fno-pie -fno-builtin)

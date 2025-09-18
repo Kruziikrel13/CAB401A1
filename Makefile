@@ -9,6 +9,14 @@ debug: shaders
 	cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_INSTALL_PREFIX:STRING=${PREFIX} -S . -B ./build
 	cmake --build ./build --config Debug --target all -j`nproc 2>/dev/null || getconf NPROCESSORS_CONF`
 
+trace: shaders
+	cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Debug -DTRACE:STRING=True -DCMAKE_INSTALL_PREFIX:STRING=${PREFIX} -S . -B ./build
+	cmake --build ./build --config Debug --target all -j`nproc 2>/dev/null || getconf NPROCESSORS_CONF`
+
+asan: shaders
+	cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Debug -DWITH_ASAN:STRING=True -DCMAKE_INSTALL_PREFIX:STRING=${PREFIX} -S . -B ./build
+	cmake --build ./build --config Debug --target all -j`nproc 2>/dev/null || getconf NPROCESSORS_CONF`
+
 clear:
 	rm -rf build/
 
@@ -23,7 +31,3 @@ all:
 shaders:
 	mkdir -p build/shaders
 	glslangValidator -V shaders/shader.comp -o build/shaders/matrix_comp.spv
-
-asan:
-	cmake --no-warn-unused-cli -DCMAKE_BUILD_TYPE:STRING=Debug -DWITH_ASAN:STRING=True -S . -B ./build
-	cmake --build ./build --config Debug --target all
