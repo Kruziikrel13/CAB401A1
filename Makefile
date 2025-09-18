@@ -30,4 +30,4 @@ all:
 .PHONY: shaders
 shaders:
 	mkdir -p build/shaders
-	glslangValidator -V shaders/shader.comp -o build/shaders/matrix_comp.spv
+	glslangValidator --target-env vulkan1.3 -V shaders/shader.comp -o build/shaders/matrix_comp.spv
