@@ -35,7 +35,7 @@ int main() {
     std::cout << "Press enter to continue...";
     std::cin.get();
 
-    const size_t print_limit = 24;
+    const size_t print_limit = 12;
     for (size_t i = 0; i < print_limit; i++) {
         for (size_t j = 0; j < print_limit; j++) {
             std::cout << "C[" << i << "][" << j << "] = " << matrixC[(i * NCommon::MATRIX_SIZE) + j] << std::endl;

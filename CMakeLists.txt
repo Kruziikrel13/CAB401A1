@@ -41,6 +41,14 @@ add_executable(sequential src/sequential.cpp)
 target_link_libraries(sequential PRIVATE common)
 target_link_libraries(sequential PRIVATE spdlog::spdlog)
 
+#  OpenMP Prog
+find_package(OpenMP)
+add_executable(omp src/omp.cpp)
+target_link_libraries(omp PRIVATE common)
+target_link_libraries(omp PRIVATE spdlog::spdlog)
+target_link_libraries(omp PRIVATE OpenMP::OpenMP_CXX)
+
+
 # Vulkan Prog
 add_executable(vulkan
   src/vulkan.cpp

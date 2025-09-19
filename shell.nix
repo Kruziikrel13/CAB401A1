@@ -11,6 +11,8 @@ pkgs.mkShell {
     valgrind
     gdb
 
+    llvmPackages_21.openmp
+
     ## LSP
     neocmakelsp
     glsl_analyzer
