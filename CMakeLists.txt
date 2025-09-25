@@ -54,6 +54,7 @@ add_executable(vulkan
   src/vulkan.cpp
   src/VulkanContext.cpp)
 target_link_libraries(vulkan PRIVATE common)
+target_compile_definitions(vulkan PRIVATE PROJECT_VERSION="${PROJECT_VERSION}")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES DEBUG)
   message(STATUS "Configuring ${PROJECT_NAME} in Debug with CMake")

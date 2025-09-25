@@ -24,6 +24,7 @@ static std::vector<char> readShaderFile(const std::string& filename) {
 }
 
 CVulkanContext::CVulkanContext(int matrix_size) : matrixSize(matrix_size) {
+    spdlog::debug("Constructing Vulkan Context. Using version {}", PROJECT_VERSION);
     spdlog::info("Initializing Vulkan Context [{}]", matrixSize);
 
     try {
