@@ -4,7 +4,6 @@
 #include <fstream>
 
 // Created using Vulkan docs at
-// https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Instance and
 // https://github.com/bmilde/vulkan_matrix_mul
 // https://docs.vulkan.org/tutorial/latest/00_Introduction.html
 
@@ -40,7 +39,13 @@ CVulkanContext::CVulkanContext(int matrix_size) : matrixSize(matrix_size) {
         createDescriptorPool();
         spdlog::info("Vulkan setup completed and compute shader successfully loaded.");
 
-    } catch (const vk::SystemError& err) { throw std::runtime_error("Vulkan System Error: " + std::string(err.what())); }
+    } catch (const vk::SystemError& err) {
+        spdlog::error("Vulkan System Error: {}", err.what());
+        throw std::runtime_error("Failed to initialize Vulkan Context");
+    } catch (const std::runtime_error& err) {
+        spdlog::error("Runtime Error: {}", err.what());
+        throw std::runtime_error("Failed to initialize Vulkan Context.");
+    }
 
     spdlog::info("Vulkan Context initialized successfully.");
 }
