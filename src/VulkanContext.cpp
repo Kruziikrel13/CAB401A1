@@ -8,8 +8,6 @@
 // https://github.com/bmilde/vulkan_matrix_mul
 // https://docs.vulkan.org/tutorial/latest/00_Introduction.html
 
-#define BUF_COUNT 3
-
 static std::vector<char> readShaderFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
@@ -45,6 +43,22 @@ CVulkanContext::CVulkanContext(int matrix_size) : matrixSize(matrix_size) {
     } catch (const vk::SystemError& err) { throw std::runtime_error("Vulkan System Error: " + std::string(err.what())); }
 
     spdlog::info("Vulkan Context initialized successfully.");
+}
+
+CVulkanContext::~CVulkanContext() {
+    spdlog::trace("Destroying Vulkan Context.");
+
+    // cleanup arrays
+    for (auto& buffer : buffers) {
+        buffer = nullptr;
+    }
+
+    for (auto& memory : bufferMemories) {
+        memory = nullptr;
+    }
+
+    // Resources are automatically cleaned up by vk::raii destructors
+    spdlog::trace("Vulkan Context destroyed successfully.");
 }
 
 void CVulkanContext::createInstance() {

@@ -2,11 +2,13 @@
 
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
+#include <array>
 
 // Vulkan Context Object
 class CVulkanContext {
   public:
     CVulkanContext(int matrix_size);
+    ~CVulkanContext();
 
 
     std::string        deviceName;
@@ -25,14 +27,10 @@ class CVulkanContext {
     void                                  allocateBufferMemory(vk::raii::Buffer& buffer, vk::raii::DeviceMemory& bufferMemory, vk::MemoryPropertyFlags properties);
     uint32_t                              findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
 
-    vk::raii::Buffer              bufferA             = nullptr;
-    vk::raii::Buffer              bufferB             = nullptr;
-    vk::raii::Buffer              bufferC             = nullptr;
-    vk::raii::DeviceMemory        bufferMemoryA       = nullptr;
-    vk::raii::DeviceMemory        bufferMemoryB       = nullptr;
-    vk::raii::DeviceMemory        bufferMemoryC       = nullptr;
     vk::raii::Context                     context;
     vk::raii::Instance                    instance            = nullptr;
+    std::array<vk::raii::Buffer, 3>       buffers             = {nullptr, nullptr, nullptr};
+    std::array<vk::raii::DeviceMemory, 3> bufferMemories      = {nullptr, nullptr, nullptr};
     vk::raii::Device                      device              = nullptr;
     vk::raii::PhysicalDevice              physicalDevice      = nullptr;
     vk::raii::Queue                       computeQueue        = nullptr;
