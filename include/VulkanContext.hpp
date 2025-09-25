@@ -10,6 +10,7 @@ class CVulkanContext {
     CVulkanContext(int matrix_size);
     ~CVulkanContext();
 
+    std::vector<float> runComputeShader(float* matrixA, float* matrixB, size_t matrix_size);
 
     std::string        deviceName;
     int                matrixSize;
