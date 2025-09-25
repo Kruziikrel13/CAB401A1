@@ -212,6 +212,7 @@ void CVulkanContext::createDescriptorPool() {
     vk::DescriptorPoolSize       poolSize{.type = vk::DescriptorType::eStorageBuffer, .descriptorCount = buffers.size()};
 
     vk::DescriptorPoolCreateInfo poolInfo{
+        .flags         = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
         .maxSets       = 1,
         .poolSizeCount = 1,
         .pPoolSizes    = &poolSize,
