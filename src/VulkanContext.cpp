@@ -115,7 +115,7 @@ void CVulkanContext::createLogicalDevice() {
     float                      queuePriority = 1.0f;
     vk::DeviceQueueCreateInfo  queueCreateInfo{.queueFamilyIndex = computeQueueFamilyIndex, .queueCount = 1, .pQueuePriorities = &queuePriority};
 
-    vk::PhysicalDeviceFeatures features{};
+    vk::PhysicalDeviceFeatures features = physicalDevice.getFeatures();
 #ifdef NDEBUG
     features.robustBufferAccess = VK_FALSE;
 #endif
