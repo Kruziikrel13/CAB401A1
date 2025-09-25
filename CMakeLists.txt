@@ -45,6 +45,7 @@ target_link_libraries(cpu PRIVATE spdlog::spdlog)
 add_executable(vulkan
   src/vulkan.cpp
   src/VulkanContext.cpp)
+target_link_libraries(vulkan PRIVATE common)
 
 if(CMAKE_BUILD_TYPE MATCHES Debug OR CMAKE_BUILD_TYPE MATCHES DEBUG)
   message(STATUS "Configuring ${PROJECT_NAME} in Debug with CMake")
